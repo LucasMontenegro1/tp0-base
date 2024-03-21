@@ -10,6 +10,8 @@ services:
         - LOGGING_LEVEL=DEBUG
         networks:
         - testing_net
+        volumes:
+        - ./server/config.ini:/config.ini
 """
 
 VERSION = """
@@ -42,6 +44,8 @@ def generate_yaml(clients):
         - testing_net
         depends_on:
         - server
+        volumes:
+        - ./client/config.yaml:/config.yaml
         ''' 
     return VERSION + services + NETWORK
 
