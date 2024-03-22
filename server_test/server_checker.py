@@ -10,7 +10,6 @@ def send_message_to_server(message,server, port, logger = None):
     process.stdin.write(message)
     process.stdin.close()
     response = process.stdout.readline().strip()
-    err = process.stderr.readline().strip
     if logger is not None:
         if response == message:
             logger.info("Received message from server successfully")
