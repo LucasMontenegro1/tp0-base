@@ -96,6 +96,14 @@ func set_channel() chan os.Signal {
 	return channel
 }
 
+func SetBetsFile(filePath string) (*os.File, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, err
+	}
+	return file, nil
+}
+
 func main() {
 	v, err := InitConfig()
 	if err != nil {
@@ -114,10 +122,15 @@ func main() {
 		ID:            v.GetString("id"),
 		LoopLapse:     v.GetDuration("loop.lapse"),
 		LoopPeriod:    v.GetDuration("loop.period"),
+		BatchSize:     v.GetInt("batch_size"),
 	}
 
-	bet := common.NewBet()
 	channel := set_channel()
-	client := common.NewClient(clientConfig, channel, bet)
+
+	file, err := SetBetsFile(v.GetString("file.csv"))
+	if err != nil {
+		log.Fatalf("%s", err)
+	}
+	client := common.NewClient(clientConfig, channel, file)
 	client.StartClientLoop()
 }

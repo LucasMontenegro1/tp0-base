@@ -44,9 +44,12 @@ class Server:
         client socket will also be closed
         """
         try:
-            bet = receive_bet(client_sock)
-            store_bets([bet])
-            logging.info(f"action: apuesta_almacenada | result: success | dni: {bet.document} | numero: {bet.number}")
+            while True:
+                bets = receive_bet(client_sock)
+                if len(bets) == 0:
+                    break
+                store_bets(bets)
+                
         except OSError as e:
             logging.error("action: receive_message | result: fail | error: {e}")
         finally:
