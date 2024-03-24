@@ -45,6 +45,7 @@ func (bet *Bet) GetFormatedBet(id string) string {
 	return fmt.Sprintf("%s,%s,%s,%s,%s,%s;", id, bet.Name, bet.LastName, bet.ID, bet.BirthDate, bet.Number)
 }
 
+// SendBets sends a batch of bets to the server over the given connection.
 func SendBets(conn net.Conn, bets []*Bet, ID string) error {
 	var message string
 	for _, bet := range bets {
@@ -61,6 +62,7 @@ func SendBets(conn net.Conn, bets []*Bet, ID string) error {
 	return err
 }
 
+// sendCloseMessage sends a close message to the given connection.
 func sendCloseMessage(conn net.Conn) {
 	closeMessage := "CLOSE_CONNECTION"
 	messageLength := uint32(len(closeMessage))
@@ -72,6 +74,7 @@ func sendCloseMessage(conn net.Conn) {
 	conn.Write([]byte(closeMessage))
 }
 
+// getResponse reads a response from the given connection.
 func getResponse(conn net.Conn) (string, error) {
 	reader := bufio.NewReader(conn)
 	lengthBytes := make([]byte, 4)
