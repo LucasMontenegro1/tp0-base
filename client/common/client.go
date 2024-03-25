@@ -103,7 +103,6 @@ loop:
 			break loop
 		default:
 		}
-		log.Infof("Asking server for winners: %v", c.config.ID)
 		// Asks the server for the winners
 		AskForWinners(c.conn, c.config.ID)
 		res, err := GetWinnersFromServer(c.conn)

@@ -1,3 +1,4 @@
+import multiprocessing
 import socket
 import logging
 import signal
@@ -12,10 +13,18 @@ class Server:
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
-        self.all_clients_ready = False
-        self.finished_clients = 0
         self.clients_number = clients
+        manager = multiprocessing.Manager()
+        self.locks = {
+            'bets': manager.Lock(),
+            'fished_clietns': manager.Lock(),
+            'clients': manager.Lock()
+        }
         
+        self.data = manager.dict({
+            'finished_clients' : 0,
+            'all_clients_ready' : False
+        })
         # Register signal handlers
         signal.signal(signal.SIGTERM, self.handle_sigterm)
         
@@ -34,8 +43,9 @@ class Server:
         
         while self.running:
             client_sock = self.__accept_new_connection()
-            self.clients.append(client_sock)
-            self.__handle_client_connection(client_sock)
+            client = multiprocessing.Process(target=self.__handle_client_connection, args=(client_sock,))
+            self.clients.append(client)
+            client.start()
         
         self._server_socket.close()
 
@@ -71,9 +81,8 @@ class Server:
         Raises:
             ValueError: If the server is not ready to send the winners.
         """
-        if self.all_clients_ready:
+        if self.data['all_clients_ready']:
             message = get_winners(id)
-            logging.info(f"action: command_winners | result: success | id: {id}")
             msg_length_bytes = len(message).to_bytes(4, byteorder="big")
             client_sock.sendall(msg_length_bytes + message.encode())
         else:
@@ -92,18 +101,23 @@ class Server:
             while self.running:
                 id, action = Server.receive_action(client_sock)
             
-                if action != 'BET':
+                if action != 'BET' and action!= 'WINNERS':
                     logging.info(f'action: command_receive | result: in_progress | id: {id} | action: {action}')
                 if action == 'CLOSE_CONNECTION':
                     break                
                 elif action == 'BET':
-                    store_bets(receive_bet(client_sock))
+                    bet = receive_bet(client_sock)
+                    self.locks['bets'].acquire()
+                    store_bets(bet)
+                    self.locks['bets'].release()
                 elif action == 'FINISH_BET':
                     logging.info("action: storing_bets | result: success")
-                    self.finished_clients += 1
-                    if self.finished_clients == self.clients_number:
-                        self.all_clients_ready = True
+                    self.locks['clients'].acquire()
+                    self.data['finished_clients'] += 1
+                    if self.data['finished_clients'] == self.clients_number:
+                        self.data['all_clients_ready'] = True
                         logging.info(f'action: sorteo | result: success')
+                    self.locks['clients'].release()
                 elif action == 'WINNERS':
                     self.send_winners(client_sock, id)
                 else:
@@ -140,5 +154,5 @@ class Server:
         logging.info('action: handle_sigterm | result: in_progress')
         self.running = False
         for client in self.clients:
-            client.close()
+            client.join()
         logging.info(f'action: handle_sigterm | result: success')
