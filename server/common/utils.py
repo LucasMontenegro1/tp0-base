@@ -25,6 +25,22 @@ class Bet:
         self.birthdate = datetime.date.fromisoformat(birthdate)
         self.number = int(number)
 
+def get_winners(id):
+    """
+        Returns a list of winners for a given agency id.
+
+        Parameters:
+            id (str): The agency id.
+
+        Returns:
+            str: A comma-separated list of winners or "NOT_A_WINNER" if no winners were found.
+    """
+    bets = load_bets()
+    winners = list(filter(has_won, bets))
+    winners = [bet.document for bet in winners if bet.agency == int(id)]
+    return ",".join(winners) if len(winners) > 0 else "NOT_A_WINNER"
+
+
 """ Checks whether a bet won the prize or not. """
 def has_won(bet: Bet) -> bool:
     return bet.number == LOTTERY_WINNER_NUMBER
@@ -66,10 +82,6 @@ def receive_bet(client_sock):
     message_length = int.from_bytes(client_sock.recv(4), byteorder='big')
     # Luego, leer el mensaje completo
     msg = client_sock.recv(message_length).decode('utf-8').strip()
-    
-    if msg == "CLOSE_CONNECTION":
-        client_sock.close()
-        return []
     
     bet_list = msg.split(';')
     bet_list = list(filter(lambda line: line!= '', bet_list))
