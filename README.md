@@ -80,6 +80,40 @@ Crear un script que permita verificar el correcto funcionamiento del servidor ut
 ### Ejercicio N°4:
 Modificar servidor y cliente para que ambos sistemas terminen de forma _graceful_ al recibir la signal SIGTERM. Terminar la aplicación de forma _graceful_ implica que todos los _file descriptors_ (entre los que se encuentran archivos, sockets, threads y procesos) deben cerrarse correctamente antes que el thread de la aplicación principal muera. Loguear mensajes en el cierre de cada recurso (hint: Verificar que hace el flag `-t` utilizado en el comando `docker compose down`).
 
+### Resolución
+
+- Servidor: En el caso del servidor se utilizo **signal** para detectar el SIGTERM.
+
+Al producirse un sigterm se ejecuta la siguiente fincion, estableciendo la flag running en false, y cerrando la comunicación con los clientes.
+```python
+    def handle_sigterm(self, signum, frame):
+        """
+        Handle SIGTERM signal
+
+        Function that is called when SIGTERM signal is received.
+        It closes all the open connections and sets the running flag to false
+        """
+        
+        logging.info('action: handle_sigterm | result: in_progress')
+        self.running = False
+        for client in self.clients:
+            client.close()
+            logging.info(f'action: close_client | result: success')
+        logging.info(f'action: handle_sigterm | result: success')
+```
+
+- Cliente : Para el caso del cliente se utilizaron channels para handelear el sigterm:
+
+al loop del cliente se agrega 
+
+```golang
+    case <-c.channel:
+        log.Infof("action: sigterm_detected | result: success | client_id: %v",
+            c.config.ID,
+        )
+        break loop
+```
+
 ## Parte 2: Repaso de Comunicaciones
 
 Las secciones de repaso del trabajo práctico plantean un caso de uso denominado **Lotería Nacional**. Para la resolución de las mismas deberá utilizarse como base al código fuente provisto en la primera parte, con las modificaciones agregadas en el ejercicio 4.
