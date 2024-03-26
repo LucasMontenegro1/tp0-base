@@ -154,4 +154,5 @@ class Server:
         self.running = False
         for client in self.clients:
             client.join()
+            logging.info(f'action: close_client | result: success')
         logging.info(f'action: handle_sigterm | result: success')
