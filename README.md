@@ -68,17 +68,152 @@ En esta primera parte del trabajo práctico se plantean una serie de ejercicios 
 ### Ejercicio N°1:
 Modificar la definición del DockerCompose para agregar un nuevo cliente al proyecto.
 
+#### Resolución 
+
+Para este caso se agrego un cliente nuevo modigicando el archivo **docker-compose-dev.yaml**
+
+```yaml
+    client2:
+    container_name: client2
+    image: client:latest
+    entrypoint: /client
+    environment:
+    - CLI_ID=2
+    - CLI_LOG_LEVEL=DEBUG
+    networks:
+    - testing_net
+    depends_on:
+    - server
+```
+
+Como se puede ver se agrega el container name como client2 y se modifica su ID.
+
+
 ### Ejercicio N°1.1:
 Definir un script (en el lenguaje deseado) que permita crear una definición de DockerCompose con una cantidad configurable de clientes.
+
+#### Resolución
+
+Para el ejercicio 1.1. se creo un script llamado **gemerate_compose.py**. Para su utilización:
+
+```bash
+    python generate_compose.py n 
+```
+siendo n la cantidad de clientes requeridos en este caso
+
+para mas información
+
+```bash
+    python generate_compose.py --help
+```
 
 ### Ejercicio N°2:
 Modificar el cliente y el servidor para lograr que realizar cambios en el archivo de configuración no requiera un nuevo build de las imágenes de Docker para que los mismos sean efectivos. La configuración a través del archivo correspondiente (`config.ini` y `config.yaml`, dependiendo de la aplicación) debe ser inyectada en el container y persistida afuera de la imagen (hint: `docker volumes`).
 
+#### Resolución 
+
+Para este caso se modificó el archivo **docker-compose-dev.yaml** utilizando docker volumes 
+
+```yaml
+    client2:
+        container_name: client2
+        image: client:latest
+        entrypoint: /client
+        environment:
+        - CLI_ID=2
+        - CLI_LOG_LEVEL=DEBUG
+        networks:
+        - testing_net
+        depends_on:
+        - server
+        volumes:
+        - ./client/config.yaml:/config.yaml
+```
+
+Como se puede ver se agrega la linea 
+
+```yaml
+        volumes:
+        - ./client/config.yaml:/config.yaml
+```
+
+A su vez se modifica el archivo **generate_compose.py**
+
 ### Ejercicio N°3:
 Crear un script que permita verificar el correcto funcionamiento del servidor utilizando el comando `netcat` para interactuar con el mismo. Dado que el servidor es un EchoServer, se debe enviar un mensaje al servidor y esperar recibir el mismo mensaje enviado. Netcat no debe ser instalado en la máquina _host_ y no se puede exponer puertos del servidor para realizar la comunicación (hint: `docker network`).
 
+
+#### Resolución
+
+Para este caso se creo la carpeta server_test, dentro, se encuentran 3 archivos: 
+ 1. **config.ini** : con la configuración del test
+ 2. **Dockerfile** : el dockerfile para correr el test
+ 3. **server_checker.py** : el script para probar el servidor
+
+para correr el script (mientras se corre el servidor):
+
+1. buildear:
+```bash
+    docker build -t tests .
+```
+
+2. correr:
+```bash
+     docker run --rm -it --network=tp0_testing_net tests
+```
+Como se puede ver se utiliza el comando network
+
+por ultimo se recibira un mensaje:
+
+```bash
+2024-03-26 01:30:24 INFO     Received message from server successfully
+```
+
+A su vez se deberá visualizar en los logs del servidor:
+
+```bash
+server   | 2024-03-26 01:30:20 INFO     action: accept_connections | result: in_progress
+server   | 2024-03-26 01:30:24 INFO     action: accept_connections | result: success | ip: 172.25.125.5
+server   | 2024-03-26 01:30:24 INFO     action: receive_message | result: success | ip: 172.25.125.5 | msg: hello server
+```
+
+
 ### Ejercicio N°4:
 Modificar servidor y cliente para que ambos sistemas terminen de forma _graceful_ al recibir la signal SIGTERM. Terminar la aplicación de forma _graceful_ implica que todos los _file descriptors_ (entre los que se encuentran archivos, sockets, threads y procesos) deben cerrarse correctamente antes que el thread de la aplicación principal muera. Loguear mensajes en el cierre de cada recurso (hint: Verificar que hace el flag `-t` utilizado en el comando `docker compose down`).
+
+### Resolución
+
+- Servidor: En el caso del servidor se utilizo **signal** para detectar el SIGTERM.
+
+Al producirse un sigterm se ejecuta la siguiente fincion, estableciendo la flag running en false, y cerrando la comunicación con los clientes.
+```python
+    def handle_sigterm(self, signum, frame):
+        """
+        Handle SIGTERM signal
+
+        Function that is called when SIGTERM signal is received.
+        It closes all the open connections and sets the running flag to false
+        """
+        
+        logging.info('action: handle_sigterm | result: in_progress')
+        self.running = False
+        for client in self.clients:
+            client.close()
+            logging.info(f'action: close_client | result: success')
+        logging.info(f'action: handle_sigterm | result: success')
+```
+
+- Cliente : Para el caso del cliente se utilizaron channels para handelear el sigterm:
+
+al loop del cliente se agrega 
+
+```golang
+    case <-c.channel:
+        log.Infof("action: sigterm_detected | result: success | client_id: %v",
+            c.config.ID,
+        )
+        break loop
+```
 
 ## Parte 2: Repaso de Comunicaciones
 
@@ -103,9 +238,215 @@ Se deberá implementar un módulo de comunicación entre el cliente y el servido
 * Correcta separación de responsabilidades entre modelo de dominio y capa de comunicación.
 * Correcto empleo de sockets, incluyendo manejo de errores y evitando los fenómenos conocidos como [_short read y short write_](https://cs61.seas.harvard.edu/site/2018/FileDescriptors/).
 
+
+#### Resolución 
+
+Para la implemación del ejercicio se cambio tanto la estructura del cliente como la estructura del servidor.
+-Cliente:
+```golang
+    func (c *Client) StartClientLoop() {
+        c.createClientSocket()
+        err := c.bet.sendBet(c.conn, c.config.ID)
+
+        if err != nil {
+            log.Errorf("action: send_message | result: fail | client_id: %v | error: %v",
+                c.config.ID,
+                err,
+            )
+        } else {
+            res, err := getResponse(c.conn)
+            if err != nil {
+                log.Errorf("action: get_response | result: fail | client_id: %v | error: %v",
+                    c.config.ID,
+                    err,
+                )
+            }
+            log.Infof("action: respuesta_servidor | result: success | message : %v ", res)
+            log.Infof("action: apuesta_enviada | result: success | dni: %v | numero: %v", c.bet.ID, c.bet.Number)
+        }
+
+        c.conn.Close()
+    }
+
+```
+En este caso el cliente envia la apuesta a traves de sendBet, esperando luego una respuesta del servidor
+
+```golang
+    func (bet *Bet) sendBet(conn net.Conn, ID string) error {
+        formatted_bet := bet.GetFormatedBet()
+        message := fmt.Sprintf("%s,%s", ID, formatted_bet)
+        message_length := len(message)
+        buf := make([]byte, 4+message_length)
+        binary.BigEndian.PutUint32(buf[:4], uint32(message_length))
+        copy(buf[4:], message)
+        _, err := conn.Write(buf)
+        if err != nil {
+            return fmt.Errorf("error al enviar la apuesta al servidor: %v", err)
+        }
+        return err
+}
+```
+
+Se obtiene el formato de la apuesta y el tamaño del mensaje y luego se lo envia al servidor
+
+-Servidor: 
+
+```python
+        def __handle_client_connection(self, client_sock):
+        """
+        Read message from a specific client socket and closes the socket
+
+        If a problem arises in the communication with the client, the
+        client socket will also be closed
+        """
+        try:
+            bet = receive_bet(client_sock)
+            store_bets([bet])
+            logging.info(f"action: apuesta_almacenada | result: success | dni: {bet.document} | numero: {bet.number}")
+        except OSError as e:
+            logging.error("action: receive_message | result: fail | error: {e}")
+        finally:
+            client_sock.close()
+```
+en este caso se utiliza la funcion receive bets para recibir las distintas apuestas de los clientes 
+
+```python
+def receive_bet(client_sock):
+    # Leer primero la longitud del mensaje
+    message_length = int.from_bytes(client_sock.recv(4), byteorder='big')
+    # Luego, leer el mensaje completo
+    msg = client_sock.recv(message_length).decode('utf-8') 
+    
+    #envio la respuesta al cliente
+    message = 'OK'
+    msg_length_bytes = len(message).to_bytes(4, byteorder='big')
+
+    # Enviar los 4 bytes de longitud seguidos del mensaje
+    client_sock.sendall(msg_length_bytes + message.encode())
+    
+    return Bet(*msg.split(","))
+```
+
+en primer lugar recibe el tamaño del mensaje para luego leerlo y formatear segun corresponda, luego envia una respuesta 'OK' al cliente para indicar que recibe correctamente el mensaje.
+
+Se evitan short writes y short reads enviando el tamaño y esperando el mismo.
+
+
+
 ### Ejercicio N°6:
 Modificar los clientes para que envíen varias apuestas a la vez (modalidad conocida como procesamiento por _chunks_ o _batchs_). La información de cada agencia será simulada por la ingesta de su archivo numerado correspondiente, provisto por la cátedra dentro de `.data/datasets.zip`.
 Los _batchs_ permiten que el cliente registre varias apuestas en una misma consulta, acortando tiempos de transmisión y procesamiento. La cantidad de apuestas dentro de cada _batch_ debe ser configurable. Realizar una implementación genérica, pero elegir un valor por defecto de modo tal que los paquetes no excedan los 8kB. El servidor, por otro lado, deberá responder con éxito solamente si todas las apuestas del _batch_ fueron procesadas correctamente.
+
+
+#### Resolución 
+
+Como primera medida se modificaron los archivos de configuracion de los clientes de manera de establecer el tamaño del __batch__. Por otro lado se cambio el archivo **docker-compose-dev.yaml** para tener como volumen el csv perteneciente a cada uno de los clientes.
+
+```yaml
+server:
+  address: "server:12345"
+loop:
+  lapse: "0m20s"
+  period: "5s"
+log:
+  level: "info"
+file:
+  csv: "./agency.csv"
+batch_size: 5
+```
+```yaml
+client1:
+    container_name: client1
+    image: client:latest
+    entrypoint: /client
+    environment:
+    - CLI_ID=1
+    - CLI_LOG_LEVEL=DEBUG
+    networks:
+    - testing_net
+    depends_on:
+    - server
+    volumes:
+    - ./client/config.yaml:/config.yaml
+    - ./.data/dataset/agency-1.csv:/agency.csv
+```
+
+Por otro lado se modifico el cliente de manera de aceptar varias apuestas a la vez
+
+```golang
+func (c *Client) StartClientLoop() {
+	c.createClientSocket()
+	data := csv.NewReader(c.file)
+loop:
+	for {
+		select {
+		case <-c.channel:
+			break loop
+		default:
+		}
+		bets := GetBetBatch(data, c.config.BatchSize)
+		if len(bets) == 0 {
+			log.Infof("action: apuestas_enviadas | result: success")
+			break loop
+		}
+		err := SendBets(c.conn, bets, c.config.ID)
+		if err != nil {
+			log.Infof("action: apuestas_enviadas | result: fail | %v", err.Error())
+			break loop
+		}
+
+		_, err2 := getResponse(c.conn)
+
+		if err2 != nil {
+			log.Errorf("action: get_response | result: fail | client_id: %v | error: %v",
+				c.config.ID,
+				err,
+			)
+		}
+	}
+	sendCloseMessage(c.conn)
+	c.file.Close()
+	c.conn.Close()
+
+}
+
+```
+
+Como se puede ver, se creo la función GetBetBatch de manera de obtener el batch de bets a enviar
+
+```golang
+func GetBetBatch(reader *csv.Reader, lines int) []*Bet {
+	bets := make([]*Bet, 0, lines)
+	for i := 0; i < lines; i++ {
+		record, err := reader.Read()
+		if err != nil {
+			return bets[:i]
+		}
+		bets = append(bets, NewBet(record[0], record[1], record[2], record[3], record[4]))
+	}
+	return bets
+}
+```
+
+Nuevamente, para el envio de los mismos se establece el tamaño del mensaje primero
+
+```golang
+func SendBets(conn net.Conn, bets []*Bet, ID string) error {
+	var message string
+	for _, bet := range bets {
+		message += bet.GetFormatedBet(ID)
+	}
+	message_length := len(message)
+	buf := make([]byte, 4+message_length)
+	binary.BigEndian.PutUint32(buf[:4], uint32(message_length))
+	copy(buf[4:], message)
+	_, err := conn.Write(buf)
+	if err != nil {
+		return fmt.Errorf("error al enviar la apuesta al servidor: %v", err)
+	}
+	return err
+}
+```
 
 ### Ejercicio N°7:
 Modificar los clientes para que notifiquen al servidor al finalizar con el envío de todas las apuestas y así proceder con el sorteo.

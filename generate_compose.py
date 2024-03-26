@@ -46,6 +46,7 @@ def generate_yaml(clients):
         - server
         volumes:
         - ./client/config.yaml:/config.yaml
+        - ./.data/dataset/agency-{client_id}.csv:/agency.csv
         ''' 
     return VERSION + services + NETWORK
 
