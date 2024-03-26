@@ -59,6 +59,10 @@ loop:
 	for {
 		select {
 		case <-c.channel:
+			log.Info("action : handle_sigterm | result : success")
+			SendCloseMessage(c.conn, c.config.ID)
+			c.file.Close()
+			c.conn.Close()
 			break loop
 		default:
 		}
@@ -87,9 +91,7 @@ loop:
 	}
 	// Closes the connection
 	SendEndOfBets(c.conn, c.config.ID)
-	SendCloseMessage(c.conn, c.config.ID)
 	c.file.Close()
-	c.conn.Close()
 
 }
 
@@ -135,6 +137,5 @@ loop:
 func (c *Client) StartClientLoop() {
 	c.createClientSocket()
 	c.SendBets()
-	c.createClientSocket()
 	c.GetWinners()
 }
