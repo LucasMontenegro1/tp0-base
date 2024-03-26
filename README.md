@@ -62,6 +62,34 @@ client1  | time="2023-03-17 04:37:19" level=info msg="action: loop_finished | re
 client1 exited with code 0
 ```
 
+## Uso de Tags
+
+para visualizar los distintos avances del TP se recomienda el uso del comando ``git tag
+
+ejemplo : 
+
+```bash
+
+lucas@archlinux ~/D/F/S/tp0-base (master) [1]> git tag
+tag_ejercicio_1
+tag_ejercicio_2
+tag_ejercicio_3
+tag_ejercicio_4
+tag_ejercicio_5
+tag_ejercicio_6
+tag_ejercicio_7
+tag_ejercicio_8
+
+```
+
+para mostrar uno en particular (ejemplo 1):
+
+```bash
+lucas@archlinux ~/D/F/S/tp0-base (master)> git checkout tag_ejercicio_1
+
+```
+
+
 ## Parte 1: Introducción a Docker
 En esta primera parte del trabajo práctico se plantean una serie de ejercicios que sirven para introducir las herramientas básicas de Docker que se utilizarán a lo largo de la materia. El entendimiento de las mismas será crucial para el desarrollo de los próximos TPs.
 
