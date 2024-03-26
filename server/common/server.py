@@ -47,6 +47,7 @@ class Server:
             while True:
                 bets = receive_bet(client_sock)
                 if len(bets) == 0:
+                    logging.info("action: receive_bets | result: success")
                     break
                 store_bets(bets)
                 
