@@ -116,6 +116,96 @@ El servidor deberá esperar la notificación de las 5 agencias para considerar q
 Luego de este evento, podrá verificar cada apuesta con las funciones `load_bets(...)` y `has_won(...)` y retornar los DNI de los ganadores de la agencia en cuestión. Antes del sorteo, no podrá responder consultas por la lista de ganadores.
 Las funciones `load_bets(...)` y `has_won(...)` son provistas por la cátedra y no podrán ser modificadas por el alumno.
 
+#### Resolución
+
+Para el ejercicio 7 se cambio principalemente el protocolo de mensajeria:
+
+ - `'BET':` indica el envio de una apuesta
+ - `'FINISH_BET'` : indica la fincalización del envio de las apuestas
+ - `'CLOSE_CONNECTION'` : indica el cierre de la conexion 
+ - `'WINNERS' ` : se envia para obtener los ganadores, el servidor podra responder con los mismos o con `NOT_WINNERS_YET`. en el caso de no existir ganadores se retorna `'NOT_A_WINNER'`
+
+
+__Servidor__:
+
+```python
+    def __handle_client_connection(self, client_sock):
+        """
+        Read message from a specific client socket and closes the socket
+
+        If a problem arises in the communication with the client, the
+        client socket will also be closed
+        """
+        try:
+            while self.running:
+                id, action = Server.receive_action(client_sock)
+            
+                if action != 'BET':
+                    logging.info(f'action: command_receive | result: in_progress | id: {id} | action: {action}')
+                if action == 'CLOSE_CONNECTION':
+                    break                
+                elif action == 'BET':
+                    store_bets(receive_bet(client_sock))
+                elif action == 'FINISH_BET':
+                    logging.info("action: storing_bets | result: success")
+                    self.finished_clients += 1
+                    if self.finished_clients == self.clients_number:
+                        self.all_clients_ready = True
+                        logging.info(f'action: sorteo | result: success')
+                elif action == 'WINNERS':
+                    self.send_winners(client_sock, id)
+                else:
+                    logging.error("action: command_receive | result: fail | error: {e}")
+                
+        except OSError as e:
+            logging.error("action: receive_message | result: fail | error: {e}")
+        finally:
+            client_sock.close()
+
+```
+
+__Cliente__ :
+
+```golang
+func (c *Client) GetWinners() {
+loop:
+	for {
+		select {
+		case <-c.channel:
+			log.Info("action : handle_sigterm | result : success")
+			break loop
+		default:
+		}
+		log.Infof("Asking server for winners: %v", c.config.ID)
+		// Asks the server for the winners
+		AskForWinners(c.conn, c.config.ID)
+		res, err := GetWinnersFromServer(c.conn)
+		if err != nil {
+			log.Errorf("action: get_winners | result: fail | client_id: %v | error: %v",
+				c.config.ID,
+				err,
+			)
+			break loop
+		} else {
+			if res != "NOT_WINNERS_YET" {
+				// Received winners
+				log.Infof("action: get_winners | result: success | client_id: %v | winners: %v",
+					c.config.ID,
+					res,
+				)
+				break loop
+			}
+
+		}
+
+	}
+	// Close the connection
+	SendCloseMessage(c.conn, c.config.ID)
+	c.conn.Close()
+
+}
+```
+
 ## Parte 3: Repaso de Concurrencia
 
 ### Ejercicio N°8:
