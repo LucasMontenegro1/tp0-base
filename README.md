@@ -74,6 +74,35 @@ Definir un script (en el lenguaje deseado) que permita crear una definición de 
 ### Ejercicio N°2:
 Modificar el cliente y el servidor para lograr que realizar cambios en el archivo de configuración no requiera un nuevo build de las imágenes de Docker para que los mismos sean efectivos. La configuración a través del archivo correspondiente (`config.ini` y `config.yaml`, dependiendo de la aplicación) debe ser inyectada en el container y persistida afuera de la imagen (hint: `docker volumes`).
 
+#### Resolución 
+
+Para este caso se modificó el archivo **docker-compose-dev.yaml** utilizando docker volumes 
+
+```yaml
+    client2:
+        container_name: client2
+        image: client:latest
+        entrypoint: /client
+        environment:
+        - CLI_ID=2
+        - CLI_LOG_LEVEL=DEBUG
+        networks:
+        - testing_net
+        depends_on:
+        - server
+        volumes:
+        - ./client/config.yaml:/config.yaml
+```
+
+Como se puede ver se agrega la linea 
+
+```yaml
+        volumes:
+        - ./client/config.yaml:/config.yaml
+```
+
+A su vez se modifica el archivo **generate_compose.py**
+
 ### Ejercicio N°3:
 Crear un script que permita verificar el correcto funcionamiento del servidor utilizando el comando `netcat` para interactuar con el mismo. Dado que el servidor es un EchoServer, se debe enviar un mensaje al servidor y esperar recibir el mismo mensaje enviado. Netcat no debe ser instalado en la máquina _host_ y no se puede exponer puertos del servidor para realizar la comunicación (hint: `docker network`).
 
