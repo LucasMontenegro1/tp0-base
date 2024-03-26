@@ -3,10 +3,10 @@ package common
 import (
 	"bufio"
 	"encoding/binary"
+	"encoding/csv"
 	"fmt"
 	"io"
 	"net"
-	"os"
 )
 
 type Bet struct {
@@ -18,24 +18,39 @@ type Bet struct {
 }
 
 // NewBet returns a new instance of a Bet.
-func NewBet() *Bet {
+func NewBet(name string, lastname string, id string, birthdate string, number string) *Bet {
 	return &Bet{
-		Name:      os.Getenv("NOMBRE"),
-		LastName:  os.Getenv("APELLIDO"),
-		ID:        os.Getenv("DOCUMENTO"),
-		BirthDate: os.Getenv("NACIMIENTO"),
-		Number:    os.Getenv("NUMERO"),
+		Name:      name,
+		LastName:  lastname,
+		ID:        id,
+		BirthDate: birthdate,
+		Number:    number,
 	}
 }
 
-// GetFormatedBet returns a formatted string of the Bet.
-func (bet *Bet) GetFormatedBet() string {
-	return fmt.Sprintf("%s,%s,%s,%s,%s\n", bet.Name, bet.LastName, bet.ID, bet.BirthDate, bet.Number)
+func GetBetBatch(reader *csv.Reader, lines int) []*Bet {
+	bets := make([]*Bet, 0, lines)
+	for i := 0; i < lines; i++ {
+		record, err := reader.Read()
+		if err != nil {
+			return bets[:i]
+		}
+		bets = append(bets, NewBet(record[0], record[1], record[2], record[3], record[4]))
+	}
+	return bets
 }
 
-func (bet *Bet) sendBet(conn net.Conn, ID string) error {
-	formatted_bet := bet.GetFormatedBet()
-	message := fmt.Sprintf("%s,%s", ID, formatted_bet)
+// GetFormatedBet returns a formatted string of the Bet.
+func (bet *Bet) GetFormatedBet(id string) string {
+	return fmt.Sprintf("%s,%s,%s,%s,%s,%s;", id, bet.Name, bet.LastName, bet.ID, bet.BirthDate, bet.Number)
+}
+
+// SendBets sends a batch of bets to the server over the given connection.
+func SendBets(conn net.Conn, bets []*Bet, ID string) error {
+	var message string
+	for _, bet := range bets {
+		message += bet.GetFormatedBet(ID)
+	}
 	message_length := len(message)
 	buf := make([]byte, 4+message_length)
 	binary.BigEndian.PutUint32(buf[:4], uint32(message_length))
@@ -47,6 +62,19 @@ func (bet *Bet) sendBet(conn net.Conn, ID string) error {
 	return err
 }
 
+// sendCloseMessage sends a close message to the given connection.
+func sendCloseMessage(conn net.Conn) {
+	closeMessage := "CLOSE_CONNECTION"
+	messageLength := uint32(len(closeMessage))
+
+	lenBuf := make([]byte, 4)
+	binary.BigEndian.PutUint32(lenBuf, messageLength)
+	conn.Write(lenBuf)
+
+	conn.Write([]byte(closeMessage))
+}
+
+// getResponse reads a response from the given connection.
 func getResponse(conn net.Conn) (string, error) {
 	reader := bufio.NewReader(conn)
 	lengthBytes := make([]byte, 4)

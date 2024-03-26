@@ -337,6 +337,117 @@ Se evitan short writes y short reads enviando el tamaño y esperando el mismo.
 Modificar los clientes para que envíen varias apuestas a la vez (modalidad conocida como procesamiento por _chunks_ o _batchs_). La información de cada agencia será simulada por la ingesta de su archivo numerado correspondiente, provisto por la cátedra dentro de `.data/datasets.zip`.
 Los _batchs_ permiten que el cliente registre varias apuestas en una misma consulta, acortando tiempos de transmisión y procesamiento. La cantidad de apuestas dentro de cada _batch_ debe ser configurable. Realizar una implementación genérica, pero elegir un valor por defecto de modo tal que los paquetes no excedan los 8kB. El servidor, por otro lado, deberá responder con éxito solamente si todas las apuestas del _batch_ fueron procesadas correctamente.
 
+
+#### Resolución 
+
+Como primera medida se modificaron los archivos de configuracion de los clientes de manera de establecer el tamaño del __batch__. Por otro lado se cambio el archivo **docker-compose-dev.yaml** para tener como volumen el csv perteneciente a cada uno de los clientes.
+
+```yaml
+server:
+  address: "server:12345"
+loop:
+  lapse: "0m20s"
+  period: "5s"
+log:
+  level: "info"
+file:
+  csv: "./agency.csv"
+batch_size: 5
+```
+```yaml
+client1:
+    container_name: client1
+    image: client:latest
+    entrypoint: /client
+    environment:
+    - CLI_ID=1
+    - CLI_LOG_LEVEL=DEBUG
+    networks:
+    - testing_net
+    depends_on:
+    - server
+    volumes:
+    - ./client/config.yaml:/config.yaml
+    - ./.data/dataset/agency-1.csv:/agency.csv
+```
+
+Por otro lado se modifico el cliente de manera de aceptar varias apuestas a la vez
+
+```golang
+func (c *Client) StartClientLoop() {
+	c.createClientSocket()
+	data := csv.NewReader(c.file)
+loop:
+	for {
+		select {
+		case <-c.channel:
+			break loop
+		default:
+		}
+		bets := GetBetBatch(data, c.config.BatchSize)
+		if len(bets) == 0 {
+			log.Infof("action: apuestas_enviadas | result: success")
+			break loop
+		}
+		err := SendBets(c.conn, bets, c.config.ID)
+		if err != nil {
+			log.Infof("action: apuestas_enviadas | result: fail | %v", err.Error())
+			break loop
+		}
+
+		_, err2 := getResponse(c.conn)
+
+		if err2 != nil {
+			log.Errorf("action: get_response | result: fail | client_id: %v | error: %v",
+				c.config.ID,
+				err,
+			)
+		}
+	}
+	sendCloseMessage(c.conn)
+	c.file.Close()
+	c.conn.Close()
+
+}
+
+```
+
+Como se puede ver, se creo la función GetBetBatch de manera de obtener el batch de bets a enviar
+
+```golang
+func GetBetBatch(reader *csv.Reader, lines int) []*Bet {
+	bets := make([]*Bet, 0, lines)
+	for i := 0; i < lines; i++ {
+		record, err := reader.Read()
+		if err != nil {
+			return bets[:i]
+		}
+		bets = append(bets, NewBet(record[0], record[1], record[2], record[3], record[4]))
+	}
+	return bets
+}
+```
+
+Nuevamente, para el envio de los mismos se establece el tamaño del mensaje primero
+
+```golang
+func SendBets(conn net.Conn, bets []*Bet, ID string) error {
+	var message string
+	for _, bet := range bets {
+		message += bet.GetFormatedBet(ID)
+	}
+	message_length := len(message)
+	buf := make([]byte, 4+message_length)
+	binary.BigEndian.PutUint32(buf[:4], uint32(message_length))
+	copy(buf[4:], message)
+	_, err := conn.Write(buf)
+	if err != nil {
+		return fmt.Errorf("error al enviar la apuesta al servidor: %v", err)
+	}
+	return err
+}
+```
+
 ### Ejercicio N°7:
 Modificar los clientes para que notifiquen al servidor al finalizar con el envío de todas las apuestas y así proceder con el sorteo.
 Inmediatamente después de la notificacion, los clientes consultarán la lista de ganadores del sorteo correspondientes a su agencia.

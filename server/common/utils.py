@@ -52,16 +52,36 @@ def load_bets() -> list[Bet]:
 
 
 def receive_bet(client_sock):
+    """
+    Receive a bet from a client.
+
+    Parameters:
+        client_sock (socket): The socket object of the connected client.
+
+    Returns:
+        list[Bet]: A list of bets submitted by the client.
+
+    """
     # Leer primero la longitud del mensaje
     message_length = int.from_bytes(client_sock.recv(4), byteorder='big')
     # Luego, leer el mensaje completo
-    msg = client_sock.recv(message_length).decode('utf-8') 
+    msg = client_sock.recv(message_length).decode('utf-8').strip()
     
-    #envio la respuesta al cliente
+    if msg == "CLOSE_CONNECTION":
+        client_sock.close()
+        return []
+    
+    bet_list = msg.split(';')
+    bet_list = list(filter(lambda line: line!= '', bet_list))
+
+    bets = []
+    for bet in bet_list:
+        bets.append(Bet(*bet.split(',')))
+    
     message = 'OK'
     msg_length_bytes = len(message).to_bytes(4, byteorder='big')
 
     # Enviar los 4 bytes de longitud seguidos del mensaje
     client_sock.sendall(msg_length_bytes + message.encode())
-    
-    return Bet(*msg.split(","))
+
+    return bets
