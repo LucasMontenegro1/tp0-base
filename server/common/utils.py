@@ -40,6 +40,9 @@ def get_winners(id):
     winners = [bet.document for bet in winners if bet.agency == int(id)]
     return ",".join(winners) if len(winners) > 0 else "NOT_A_WINNER"
 
+def get_all_winners():
+    bets = load_bets()
+    return len(list(filter(has_won, bets)))
 
 """ Checks whether a bet won the prize or not. """
 def has_won(bet: Bet) -> bool:

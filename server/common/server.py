@@ -4,7 +4,7 @@ import logging
 import signal
 import sys
 
-from .utils import get_winners, receive_bet, store_bets
+from .utils import get_all_winners, get_winners, receive_bet, store_bets
 
 
 class Server:
@@ -115,7 +115,7 @@ class Server:
                     self.data['finished_clients'] += 1
                     if self.data['finished_clients'] == self.clients_number:
                         self.data['all_clients_ready'] = True
-                        logging.info(f'action: sorteo | result: success')
+                        logging.info(f'action: sorteo | result: success | Cant : {get_all_winners()} ')
                     self.locks['clients'].release()
                 elif action == 'WINNERS':
                     self.send_winners(client_sock, id)
