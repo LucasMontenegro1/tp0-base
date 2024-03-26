@@ -555,6 +555,59 @@ En este ejercicio es importante considerar los mecanismos de sincronización a u
 
 En caso de que el alumno implemente el servidor Python utilizando _multithreading_,  deberán tenerse en cuenta las [limitaciones propias del lenguaje](https://wiki.python.org/moin/GlobalInterpreterLock).
 
+#### Resolución
+
+Para la resolución del ejercicio propuesto se utilizó la biblioteca `multiprocessing` de python. Para el procesamiento de consultas en paralelo se utilizaron locks para garantizar la exclusion mutua.
+
+```python
+        self.locks = {
+            'bets': manager.Lock(),
+            'clients': manager.Lock()
+        }
+        
+        self.data = manager.dict({
+            'finished_clients' : 0,
+            'all_clients_ready' : False
+        })
+```
+
+En cuanto al loop aceptador
+
+```python
+    def run(self):
+        """
+        Dummy Server loop
+
+        Server that accept a new connections and establishes a
+        communication with a client. After client with communucation
+        finishes, servers starts to accept new connections again
+        """
+        self.running = True
+        
+        while self.running:
+            client_sock = self.__accept_new_connection()
+            client = multiprocessing.Process(target=self.__handle_client_connection, args=(client_sock,))
+            self.clients.append(client)
+            client.start()
+        
+        self._server_socket.close()
+
+```
+Como se puede ver por cada cliente nuevo se lanza un proceso
+
+El loop principal del cliente no sufrió de mayores cambios a excepcion del uso de locks, ejemplo:
+
+
+```python
+    elif action == 'BET':
+        bet = receive_bet(client_sock)
+        self.locks['bets'].acquire()
+        store_bets(bet)
+        self.locks['bets'].release()
+
+```
+
+
 ## Consideraciones Generales
 Se espera que los alumnos realicen un _fork_ del presente repositorio para el desarrollo de los ejercicios.
 El _fork_ deberá contar con una sección de README que indique como ejecutar cada ejercicio.
