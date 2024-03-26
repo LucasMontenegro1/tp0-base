@@ -77,6 +77,42 @@ Modificar el cliente y el servidor para lograr que realizar cambios en el archiv
 ### Ejercicio N°3:
 Crear un script que permita verificar el correcto funcionamiento del servidor utilizando el comando `netcat` para interactuar con el mismo. Dado que el servidor es un EchoServer, se debe enviar un mensaje al servidor y esperar recibir el mismo mensaje enviado. Netcat no debe ser instalado en la máquina _host_ y no se puede exponer puertos del servidor para realizar la comunicación (hint: `docker network`).
 
+
+#### Resolución
+
+Para este caso se creo la carpeta server_test, dentro, se encuentran 3 archivos: 
+ 1. **config.ini** : con la configuración del test
+ 2. **Dockerfile** : el dockerfile para correr el test
+ 3. **server_checker.py** : el script para probar el servidor
+
+para correr el script (mientras se corre el servidor):
+
+1. buildear:
+```bash
+    docker build -t tests .
+```
+
+2. correr:
+```bash
+     docker run --rm -it --network=tp0_testing_net tests
+```
+Como se puede ver se utiliza el comando network
+
+por ultimo se recibira un mensaje:
+
+```bash
+2024-03-26 01:30:24 INFO     Received message from server successfully
+```
+
+A su vez se deberá visualizar en los logs del servidor:
+
+```bash
+server   | 2024-03-26 01:30:20 INFO     action: accept_connections | result: in_progress
+server   | 2024-03-26 01:30:24 INFO     action: accept_connections | result: success | ip: 172.25.125.5
+server   | 2024-03-26 01:30:24 INFO     action: receive_message | result: success | ip: 172.25.125.5 | msg: hello server
+```
+
+
 ### Ejercicio N°4:
 Modificar servidor y cliente para que ambos sistemas terminen de forma _graceful_ al recibir la signal SIGTERM. Terminar la aplicación de forma _graceful_ implica que todos los _file descriptors_ (entre los que se encuentran archivos, sockets, threads y procesos) deben cerrarse correctamente antes que el thread de la aplicación principal muera. Loguear mensajes en el cierre de cada recurso (hint: Verificar que hace el flag `-t` utilizado en el comando `docker compose down`).
 

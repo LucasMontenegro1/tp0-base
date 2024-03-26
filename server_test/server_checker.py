@@ -3,7 +3,7 @@ import os
 import subprocess
 from configparser import ConfigParser
 
-#running docker run --rm -it --network=tp0_testing_net health_test
+#running docker run --rm -it --network=tp0_testing_net tests
 
 def send_message_to_server(message,server, port, logger = None):
     process = subprocess.Popen(["nc", server, port], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
