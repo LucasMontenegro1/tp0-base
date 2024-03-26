@@ -17,7 +17,6 @@ class Server:
         manager = multiprocessing.Manager()
         self.locks = {
             'bets': manager.Lock(),
-            'fished_clietns': manager.Lock(),
             'clients': manager.Lock()
         }
         
