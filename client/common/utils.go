@@ -9,6 +9,15 @@ import (
 	"net"
 )
 
+type action string
+
+const (
+	action_bet     action = "BET"
+	action_close   action = "CLOSE_CONNECTION"
+	action_winners action = "WINNERS"
+	action_finish  action = "FINISH_BET"
+)
+
 type Bet struct {
 	Name      string
 	LastName  string
@@ -45,8 +54,25 @@ func (bet *Bet) GetFormatedBet(id string) string {
 	return fmt.Sprintf("%s,%s,%s,%s,%s,%s;", id, bet.Name, bet.LastName, bet.ID, bet.BirthDate, bet.Number)
 }
 
+// Sends a message to the server with the given action and id
+func SendAction(conn net.Conn, value action, ID string) error {
+	actionWithID := fmt.Sprintf("%s,%s", ID, value)
+	actionBytes := []byte(actionWithID)
+	messageLength := len(actionBytes)
+	messageBuffer := make([]byte, 4+messageLength)
+	binary.BigEndian.PutUint32(messageBuffer[:4], uint32(messageLength))
+	copy(messageBuffer[4:], actionBytes)
+	_, err := conn.Write(messageBuffer)
+	if err != nil {
+		return fmt.Errorf("error al enviar la acción al servidor: %v", err)
+	}
+	return nil
+
+}
+
 // SendBets sends a batch of bets to the server over the given connection.
 func SendBets(conn net.Conn, bets []*Bet, ID string) error {
+	SendAction(conn, action_bet, ID)
 	var message string
 	for _, bet := range bets {
 		message += bet.GetFormatedBet(ID)
@@ -57,21 +83,30 @@ func SendBets(conn net.Conn, bets []*Bet, ID string) error {
 	copy(buf[4:], message)
 	_, err := conn.Write(buf)
 	if err != nil {
-		return fmt.Errorf("error al enviar la apuesta al servidor: %v", err)
+		return fmt.Errorf("error sending to server: %v", err)
 	}
 	return err
 }
 
 // sendCloseMessage sends a close message to the given connection.
-func sendCloseMessage(conn net.Conn) {
-	closeMessage := "CLOSE_CONNECTION"
-	messageLength := uint32(len(closeMessage))
+func SendCloseMessage(conn net.Conn, ID string) error {
+	return SendAction(conn, action_close, ID)
+}
 
-	lenBuf := make([]byte, 4)
-	binary.BigEndian.PutUint32(lenBuf, messageLength)
-	conn.Write(lenBuf)
+// SendEndOfBets sends the end of bets message to the server.
+func SendEndOfBets(conn net.Conn, ID string) error {
+	// Send the end of bets message to the server.
+	return SendAction(conn, action_finish, ID)
+}
 
-	conn.Write([]byte(closeMessage))
+// AskForWinners sends the "winners" action to the server, indicating that the client is ready to receive the winners list.
+func AskForWinners(conn net.Conn, ID string) error {
+	return SendAction(conn, action_winners, ID)
+}
+
+// GetWinnersFromServer receives the winners list from the server.
+func GetWinnersFromServer(conn net.Conn) (string, error) {
+	return getResponse(conn)
 }
 
 // getResponse reads a response from the given connection.
