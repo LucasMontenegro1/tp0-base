@@ -68,8 +68,44 @@ En esta primera parte del trabajo práctico se plantean una serie de ejercicios 
 ### Ejercicio N°1:
 Modificar la definición del DockerCompose para agregar un nuevo cliente al proyecto.
 
+#### Resolución 
+
+Para este caso se agrego un cliente nuevo modigicando el archivo **docker-compose-dev.yaml**
+
+```yaml
+    client2:
+    container_name: client2
+    image: client:latest
+    entrypoint: /client
+    environment:
+    - CLI_ID=2
+    - CLI_LOG_LEVEL=DEBUG
+    networks:
+    - testing_net
+    depends_on:
+    - server
+```
+
+Como se puede ver se agrega el container name como client2 y se modifica su ID.
+
+
 ### Ejercicio N°1.1:
 Definir un script (en el lenguaje deseado) que permita crear una definición de DockerCompose con una cantidad configurable de clientes.
+
+#### Resolución
+
+Para el ejercicio 1.1. se creo un script llamado **gemerate_compose.py**. Para su utilización:
+
+```bash
+    python generate_compose.py n 
+```
+siendo n la cantidad de clientes requeridos en este caso
+
+para mas información
+
+```bash
+    python generate_compose.py --help
+```
 
 ### Ejercicio N°2:
 Modificar el cliente y el servidor para lograr que realizar cambios en el archivo de configuración no requiera un nuevo build de las imágenes de Docker para que los mismos sean efectivos. La configuración a través del archivo correspondiente (`config.ini` y `config.yaml`, dependiendo de la aplicación) debe ser inyectada en el container y persistida afuera de la imagen (hint: `docker volumes`).
